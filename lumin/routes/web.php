@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
 
 /*
 |--------------------------------------------------------------------------
@@ -22,20 +23,33 @@ Route::get('/event', function () {
     return view('welcome');
 });
 
-Route::post('/subscribe/{TOPIC_STR}', function ($topic_str) {
+Route::post('/subscribe/{TOPIC_STR}', function (Request $request, $topic_str) {
+    # decode passed arguments
+    $bodyContent = $request->json()->all();
+    if( !isset($bodyContent['url']) || empty($bodyContent['url']) ){
+        throw new Exception('Unable to subscribe. Parameter "url" is required.');
+    }
+
+    # save new topic
     $topic = new \App\Topic();
     $topic->name = $topic_str;
     $topic->save();
 
+    # save subscription
     $subscription = new \App\Subscription();
-    $subscription->url = $_REQUEST['url'];
+    $subscription->url = $bodyContent['url'];
     $subscription->topic_id = $topic->getAttributeValue('id');
     $subscription->save();
 });
 
+Route::post('/publish/{TOPIC_STR}', function (Request $request, $topic_str) {
+    # decode passed arguments
+    $bodyContent = $request->json()->all();
+    if( !isset($bodyContent['message']) || empty($bodyContent['message']) ){
+        throw new Exception('Unable to publish. Parameter "message" is required.');
+    }
 
-Route::post('/publish/{TOPIC_STR}', function ($topic_str) {
-    // Get URLs to push data to
+    # get URLs to push data to
     $topic = \App\Topic::where('name', '=', $topic_str)->first();
     if( is_numeric($topic->id) ){
         $topic_id = $topic->id;
@@ -46,7 +60,7 @@ Route::post('/publish/{TOPIC_STR}', function ($topic_str) {
     # save event
     $event = new \App\Event();
     $event->topic_id = $topic_id;
-    $event->message = $_REQUEST['message'];
+    $event->message = $bodyContent['message'];
     $event->save();
 
     # publish event to all subscription urls
@@ -57,7 +71,7 @@ Route::post('/publish/{TOPIC_STR}', function ($topic_str) {
 
         $response = Http::post($url, [
             'topic' => $topic_str,
-            'message' => $_REQUEST['message']
+            'message' => $bodyContent['message']
         ]);
     }
 });
